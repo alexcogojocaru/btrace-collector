@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StorageClient interface {
-	Store(ctx context.Context, in *Span, opts ...grpc.CallOption) (*Response, error)
+	Store(ctx context.Context, in *StorageSpan, opts ...grpc.CallOption) (*StorageResponse, error)
 }
 
 type storageClient struct {
@@ -33,8 +33,8 @@ func NewStorageClient(cc grpc.ClientConnInterface) StorageClient {
 	return &storageClient{cc}
 }
 
-func (c *storageClient) Store(ctx context.Context, in *Span, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *storageClient) Store(ctx context.Context, in *StorageSpan, opts ...grpc.CallOption) (*StorageResponse, error) {
+	out := new(StorageResponse)
 	err := c.cc.Invoke(ctx, "/Storage/Store", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (c *storageClient) Store(ctx context.Context, in *Span, opts ...grpc.CallOp
 // All implementations must embed UnimplementedStorageServer
 // for forward compatibility
 type StorageServer interface {
-	Store(context.Context, *Span) (*Response, error)
+	Store(context.Context, *StorageSpan) (*StorageResponse, error)
 	mustEmbedUnimplementedStorageServer()
 }
 
@@ -54,7 +54,7 @@ type StorageServer interface {
 type UnimplementedStorageServer struct {
 }
 
-func (UnimplementedStorageServer) Store(context.Context, *Span) (*Response, error) {
+func (UnimplementedStorageServer) Store(context.Context, *StorageSpan) (*StorageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Store not implemented")
 }
 func (UnimplementedStorageServer) mustEmbedUnimplementedStorageServer() {}
@@ -71,7 +71,7 @@ func RegisterStorageServer(s grpc.ServiceRegistrar, srv StorageServer) {
 }
 
 func _Storage_Store_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Span)
+	in := new(StorageSpan)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func _Storage_Store_Handler(srv interface{}, ctx context.Context, dec func(inter
 		FullMethod: "/Storage/Store",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StorageServer).Store(ctx, req.(*Span))
+		return srv.(StorageServer).Store(ctx, req.(*StorageSpan))
 	}
 	return interceptor(ctx, in, info, handler)
 }

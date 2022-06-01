@@ -7,28 +7,41 @@ import (
 	"net"
 
 	"github.com/alexcogojocaru/collector/config"
-	collector "github.com/alexcogojocaru/collector/proto-gen/btrace_proxy"
+	proxy_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_proxy"
+	storage_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_storage"
+	"github.com/alexcogojocaru/collector/storage"
 	"google.golang.org/grpc"
 )
 
 // CollectorServiceImpl holds the description for the CollectorService from the proto generated files
 type CollectorServiceImpl struct {
 	// UnimplementedCollectorServiceServer embedded to have forward compatible implementations
-	collector.UnimplementedAgentServer
+	proxy_grpc.UnimplementedAgentServer
+
+	StorageClient storage.StorageClient
 }
 
 // Creates and returns a pointer to CollectorServiceImpl
 func NewCollectorServiceImpl() *CollectorServiceImpl {
-	collectorImpl := &CollectorServiceImpl{}
+	collectorImpl := &CollectorServiceImpl{
+		StorageClient: *storage.NewStorageClient(),
+	}
+
 	return collectorImpl
 }
 
 // Implementation of the StreamSpan method from the proto file
 // Receives a SpanRequest object that holds a slice of Spans and returns (SpanResponse, error)
-func (agentServiceImpl *CollectorServiceImpl) Send(ctx context.Context, span *collector.Span) (*collector.Response, error) {
+func (agentServiceImpl *CollectorServiceImpl) Send(ctx context.Context, span *proxy_grpc.Span) (*proxy_grpc.Response, error) {
 	log.Print(span)
 
-	return &collector.Response{}, nil
+	storageSpan := storage_grpc.StorageSpan{
+		SpanID:  span.SpanID,
+		TraceID: span.TraceID,
+	}
+	agentServiceImpl.StorageClient.Client.Store(ctx, &storageSpan)
+
+	return &proxy_grpc.Response{}, nil
 }
 
 func main() {
@@ -52,7 +65,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	collectorService := NewCollectorServiceImpl()
 
-	collector.RegisterAgentServer(grpcServer, collectorService)
+	proxy_grpc.RegisterAgentServer(grpcServer, collectorService)
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatal("Failed to serve")
 	}

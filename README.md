@@ -1,1 +1,1 @@
-# btrace-collector
+# Collector

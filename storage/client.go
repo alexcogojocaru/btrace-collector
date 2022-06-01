@@ -12,7 +12,7 @@ type StorageClient struct {
 }
 
 func NewStorageClient() *StorageClient {
-	storageServerHost := "localhost:50051"
+	storageServerHost := "192.168.100.2:50051"
 	conn, err := grpc.Dial(storageServerHost, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Cannot dial %s", storageServerHost)

@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/alexcogojocaru/collector/config"
+	"github.com/alexcogojocaru/collector/extensions"
 	proxy_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_proxy"
-	storage_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_storage"
 	"github.com/alexcogojocaru/collector/storage"
 	"google.golang.org/grpc"
 )
@@ -19,6 +20,7 @@ type CollectorServiceImpl struct {
 	proxy_grpc.UnimplementedAgentServer
 
 	StorageClient storage.StorageClient
+	Extensions    []extensions.Pluggable
 }
 
 // Creates and returns a pointer to CollectorServiceImpl
@@ -30,31 +32,36 @@ func NewCollectorServiceImpl() *CollectorServiceImpl {
 	return collectorImpl
 }
 
-// Implementation of the StreamSpan method from the proto file
-// Receives a SpanRequest object that holds a slice of Spans and returns (SpanResponse, error)
-func (agentServiceImpl *CollectorServiceImpl) Send(ctx context.Context, span *proxy_grpc.Span) (*proxy_grpc.Response, error) {
-	log.Print(span)
-
-	storageSpan := storage_grpc.StorageSpan{
-		SpanID:  span.SpanID,
-		TraceID: span.TraceID,
+func (collectorService *CollectorServiceImpl) AddExtensions(exts ...extensions.Pluggable) {
+	for _, extension := range exts {
+		collectorService.Extensions = append(collectorService.Extensions, extension)
 	}
-	agentServiceImpl.StorageClient.Client.Store(ctx, &storageSpan)
+}
+
+func (collectorService *CollectorServiceImpl) Send(ctx context.Context, span *proxy_grpc.Span) (*proxy_grpc.Response, error) {
+	var wg sync.WaitGroup
+	for _, extension := range collectorService.Extensions {
+		wg.Add(1)
+
+		go func(extension extensions.Pluggable) {
+			defer wg.Done()
+			extension.Send(ctx, span)
+		}(extension)
+	}
+
+	wg.Wait()
 
 	return &proxy_grpc.Response{}, nil
 }
 
 func main() {
-	// Set the microseconds flag to have precise timestamp measurements
 	log.SetFlags(log.Lmicroseconds | log.Ldate)
 
-	// TODO in future: use the config file to deploy the collector as a cluster using RAFT as a leader election and log replication
 	conf, err := config.ParseConfig("config/config.yml")
 	if err != nil {
 		log.Fatal("Error while parsing the config file")
 	}
 
-	// Create a TCP socket on the port specified in the config file
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", conf.Deploy.Port))
 	if err != nil {
 		log.Fatal("Failed to listen on port")
@@ -64,6 +71,10 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	collectorService := NewCollectorServiceImpl()
+	collectorService.AddExtensions(
+		extensions.NewStorageExtension("localhost", 50051),
+		extensions.NewNeo4jExtension(),
+	)
 
 	proxy_grpc.RegisterAgentServer(grpcServer, collectorService)
 	if err := grpcServer.Serve(listener); err != nil {

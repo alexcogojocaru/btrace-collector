@@ -10,18 +10,9 @@ import (
 // Struct that has the yml config file
 // MUST be updated every time you add a new entry in the yml file
 type Conf struct {
-	Mode   string `yaml:"mode"`
 	Deploy struct {
 		Hostname string `yaml:"hostname"`
 		Port     int32  `yaml:"port"`
-	}
-}
-
-type Credentials struct {
-	Db struct {
-		Host string `yaml:"host"`
-		User string `yaml:"user"`
-		Pass string `yaml:"pass"`
 	}
 }
 

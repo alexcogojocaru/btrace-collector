@@ -3,7 +3,6 @@ package extensions
 import (
 	"context"
 	"fmt"
-	"log"
 
 	proxy_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_proxy"
 	storage_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_storage"
@@ -15,13 +14,14 @@ type StorageExtension struct {
 }
 
 func (st *StorageExtension) Send(ctx context.Context, span *proxy_grpc.Span) error {
-	log.Print(span)
+	// log.Print(span)
 
 	storageSpan := storage_grpc.StorageSpan{
-		ServiceName:  "ScooterApp",
+		ServiceName:  span.ServiceName,
 		SpanID:       span.SpanID,
 		TraceID:      span.TraceID,
 		ParentSpanID: span.ParentSpanID,
+		SpanName:     span.Name,
 	}
 
 	st.Client.Store(ctx, &storageSpan)

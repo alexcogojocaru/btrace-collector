@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"context"
+	"log"
 	"os"
 
 	proxy_grpc "github.com/alexcogojocaru/collector/proto-gen/btrace_proxy"
@@ -14,14 +15,22 @@ type Neo4jExtension struct {
 }
 
 func (neo *Neo4jExtension) Send(ctx context.Context, span *proxy_grpc.Span) error {
-	_, err := neo.Session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
-		var query string
-		if span.ParentSpanID == "0000000000000000" {
-			query = "MERGE (t:Trace {id: $trace_id})-[:PARENT_OF]->(s:Span {id: $span_id})"
-		} else {
-			query = "MATCH (ps:Span) WHERE ps.id=$parent_span_id MERGE (s:Span {id: $span_id})<-[:PARENT_OF]-(ps)"
-		}
+	log.Printf("%s %s %s", span.TraceID, span.SpanID, span.ParentSpanID)
 
+	var query string
+	if span.ParentSpanID == "0000000000000000" {
+		query = `
+			MERGE (s:Span {id: $span_id}) 
+			MERGE (t:Trace {id: $trace_id}) 
+			CREATE (t)-[:PARENT]->(s)`
+	} else {
+		query = `
+			MERGE (ps:Span {id: $parent_span_id}) 
+			MERGE (s:Span {id: $span_id}) 
+			CREATE (ps)-[:PARENT]->(s)`
+	}
+
+	_, err := neo.Session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		result, err := tx.Run(
 			query,
 			map[string]interface{}{

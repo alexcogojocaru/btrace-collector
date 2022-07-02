@@ -14,8 +14,6 @@ type StorageExtension struct {
 }
 
 func (st *StorageExtension) Send(ctx context.Context, span *proxy_grpc.Span) error {
-	// log.Print(span)
-
 	storageSpan := storage_grpc.StorageSpan{
 		ServiceName:  span.ServiceName,
 		SpanID:       span.SpanID,
@@ -25,7 +23,6 @@ func (st *StorageExtension) Send(ctx context.Context, span *proxy_grpc.Span) err
 	}
 
 	st.Client.Store(ctx, &storageSpan)
-
 	return nil
 }
 

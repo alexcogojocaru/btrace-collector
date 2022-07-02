@@ -22,7 +22,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentClient interface {
+	// used by both collector and agent
 	Send(ctx context.Context, in *Span, opts ...grpc.CallOption) (*Response, error)
+	// for the collector endpoint
+	Stream(ctx context.Context, opts ...grpc.CallOption) (Agent_StreamClient, error)
 }
 
 type agentClient struct {
@@ -42,11 +45,48 @@ func (c *agentClient) Send(ctx context.Context, in *Span, opts ...grpc.CallOptio
 	return out, nil
 }
 
+func (c *agentClient) Stream(ctx context.Context, opts ...grpc.CallOption) (Agent_StreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[0], "/Agent/Stream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &agentStreamClient{stream}
+	return x, nil
+}
+
+type Agent_StreamClient interface {
+	Send(*Span) error
+	CloseAndRecv() (*Response, error)
+	grpc.ClientStream
+}
+
+type agentStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *agentStreamClient) Send(m *Span) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *agentStreamClient) CloseAndRecv() (*Response, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Response)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AgentServer is the server API for Agent service.
 // All implementations must embed UnimplementedAgentServer
 // for forward compatibility
 type AgentServer interface {
+	// used by both collector and agent
 	Send(context.Context, *Span) (*Response, error)
+	// for the collector endpoint
+	Stream(Agent_StreamServer) error
 	mustEmbedUnimplementedAgentServer()
 }
 
@@ -56,6 +96,9 @@ type UnimplementedAgentServer struct {
 
 func (UnimplementedAgentServer) Send(context.Context, *Span) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Send not implemented")
+}
+func (UnimplementedAgentServer) Stream(Agent_StreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method Stream not implemented")
 }
 func (UnimplementedAgentServer) mustEmbedUnimplementedAgentServer() {}
 
@@ -88,6 +131,32 @@ func _Agent_Send_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Agent_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServer).Stream(&agentStreamServer{stream})
+}
+
+type Agent_StreamServer interface {
+	SendAndClose(*Response) error
+	Recv() (*Span, error)
+	grpc.ServerStream
+}
+
+type agentStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *agentStreamServer) SendAndClose(m *Response) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *agentStreamServer) Recv() (*Span, error) {
+	m := new(Span)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Agent_ServiceDesc is the grpc.ServiceDesc for Agent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +169,12 @@ var Agent_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Agent_Send_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Stream",
+			Handler:       _Agent_Stream_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "v2/proxy.proto",
 }

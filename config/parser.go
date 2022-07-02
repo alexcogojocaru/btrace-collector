@@ -14,6 +14,12 @@ type Conf struct {
 		Hostname string `yaml:"hostname"`
 		Port     int32  `yaml:"port"`
 	}
+	Connections struct {
+		Storage struct {
+			Hostname string `yaml:"hostname"`
+			Port     int32  `yaml:"port"`
+		}
+	}
 }
 
 // Parse the config file using the filename parameter and return the configuration as a Conf object

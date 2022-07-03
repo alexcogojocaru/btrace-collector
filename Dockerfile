@@ -1,8 +1,8 @@
 FROM golang:1.17-alpine
 
-WORKDIR /app
+WORKDIR /data
 
 COPY . .
-RUN go build -o /golang-collector-btrace
+RUN go build -o /data/bin-collector
 
-CMD [ "/golang-collector-btrace" ]
+CMD [ "/data/bin-collector" ]

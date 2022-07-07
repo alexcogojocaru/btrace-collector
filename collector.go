@@ -17,7 +17,7 @@ import (
 // CollectorServiceImpl holds the description for the CollectorService from the proto generated files
 type CollectorServiceImpl struct {
 	// UnimplementedCollectorServiceServer embedded to have forward compatible implementations
-	proxy_grpc.UnimplementedAgentServer
+	proxy_grpc.UnimplementedExporterServer
 	Extensions []extensions.Pluggable
 }
 
@@ -49,11 +49,12 @@ func (cs *CollectorServiceImpl) NotifyExtensions(ctx context.Context, span *prox
 }
 
 func (cs *CollectorServiceImpl) Send(ctx context.Context, span *proxy_grpc.Span) (*proxy_grpc.Response, error) {
+	log.Printf("Send %s", span.SpanID)
 	cs.NotifyExtensions(ctx, span)
 	return &proxy_grpc.Response{}, nil
 }
 
-func (cs *CollectorServiceImpl) Stream(stream proxy_grpc.Agent_StreamServer) error {
+func (cs *CollectorServiceImpl) Stream(stream proxy_grpc.Exporter_StreamServer) error {
 	for {
 		span, err := stream.Recv()
 		if err == io.EOF {
@@ -90,7 +91,7 @@ func main() {
 		extensions.NewNeo4jExtension(),
 	)
 
-	proxy_grpc.RegisterAgentServer(grpcServer, collectorService)
+	proxy_grpc.RegisterExporterServer(grpcServer, collectorService)
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatal("Failed to serve")
 	}

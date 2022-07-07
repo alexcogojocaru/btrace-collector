@@ -33,7 +33,12 @@ func (st *StorageExtension) Send(ctx context.Context, span *proxy_grpc.Span) err
 		TraceID:      span.TraceID,
 		ParentSpanID: span.ParentSpanID,
 		SpanName:     span.Name,
-		Logs:         ConvertToStorageKeyValue(span.Logs),
+		Timestamp: &storage_grpc.StorageTimestamp{
+			Started:  span.Timestamp.Started,
+			Ended:    span.Timestamp.Ended,
+			Duration: span.Timestamp.Duration,
+		},
+		Logs: ConvertToStorageKeyValue(span.Logs),
 	}
 
 	st.Client.Store(ctx, &storageSpan)
